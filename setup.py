@@ -6,6 +6,7 @@ setup(
     license='MIT License',
     description='A Python logging handler to sends logs to Splunk using HTTP event collector (HEC)',
     long_description=open('README.md').read(),
+    long_description_content_type='text/markdown',
     author='vavarachen',
     author_email='vavarachen@gmail.com',
     url='https://github.com/vavarachen/splunk_hec_handler',
