@@ -72,26 +72,27 @@ class SplunkHecHandler(logging.Handler):
         :keyword Arguments:
             port: 0-65535 port number of Splunk HEC listener
             proto: http | https
-            ssl_verify: True|False.  Use False for self-signed certificates
+            ssl_verify: True|False|Path to cert.  True by default.
+                see https://2.python-requests.org/en/master/user/advanced/#ssl-cert-verification
             source: Override source value specified in Splunk HEC configuration.  None by default.
             sourcetype: Override sourcetype value specified in Splunk HEC configuration.  None by default.
             hostname: Specify custom host value.  Defaults to hostname returned by socket.gethostname()
             endpoint: raw | event.  Use 'raw' if field extractions should be skipped.
-            see http://docs.splunk.com/Documentation/Splunk/latest/RESTREF/RESTinput#services.2Fcollector.2Fraw
+                see http://docs.splunk.com/Documentation/Splunk/latest/RESTREF/RESTinput#services.2Fcollector.2Fraw
 
         """
         self.host = host
         self.token = token
         if kwargs is not None:
-            self.port = int(kwargs.pop('port')) if 'port' in kwargs.keys() else 8080
-            self.proto = kwargs.pop('proto') if 'proto' in kwargs.keys() else 'https'
-            self.ssl_verify = True if ('ssl_verify' in kwargs.keys()
-                                       and kwargs['ssl_verify'] in ["1", 1, "true", "True", True]) else False
-            self.source = kwargs.pop('source') if 'source' in kwargs.keys() else None
-            self.index = kwargs.pop('index') if 'index' in kwargs.keys() else None
-            self.sourcetype = kwargs.pop('sourcetype') if 'sourcetype' in kwargs.keys() else None
-            self.hostname = kwargs.pop('hostname') if 'hostname' in kwargs.keys() else socket.gethostname()
-            self.endpoint = kwargs.pop('endpoint') if 'endpoint' in kwargs.keys() else 'event'
+            self.port = int(kwargs.get('port', 8080))
+            self.proto = kwargs.get('proto', 'https')
+            self.ssl_verify = False if (kwargs.get('ssl_verify') in ["0", 0, "false", "False", False]) \
+                else kwargs.get('cert') or True
+            self.source = kwargs.get('source')
+            self.index = kwargs.get('index')
+            self.sourcetype = kwargs.get('sourcetype')
+            self.hostname = kwargs.get('hostname', socket.gethostname())
+            self.endpoint = kwargs.get('endpoint', 'event')
 
         try:
             # Testing connectivity
