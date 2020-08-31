@@ -107,6 +107,7 @@ class SplunkHecHandler(logging.Handler):
             self.r.headers['Authorization'] = "Splunk {}".format(self.token)
             logging.Handler.__init__(self)
         except Exception as err:
+            s.close()
             logging.debug("Failed to connect to remote Splunk server (%s:%s). Exception: %s"
                           % (self.host, self.port, err))
             raise err
