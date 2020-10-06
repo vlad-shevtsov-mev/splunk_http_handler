@@ -58,7 +58,7 @@ class SplunkHecHandler(logging.Handler):
     http://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector
     """
     URL_PATTERN = "{0}://{1}:{2}/services/collector/{3}"
-    TIMEOUT = 2
+    TIMEOUT = 30
 
     def __init__(self, host, token, **kwargs):
         """
@@ -97,7 +97,7 @@ class SplunkHecHandler(logging.Handler):
         try:
             # Testing connectivity
             s = socket.socket()
-            s.settimeout(self.TIMEOUT)
+            s.settimeout(kwargs.get('timeout', self.TIMEOUT))
             s.connect((self.host, self.port))
 
             # Socket accessible.  Establish requests session
@@ -107,7 +107,6 @@ class SplunkHecHandler(logging.Handler):
             self.r.headers['Authorization'] = "Splunk {}".format(self.token)
             logging.Handler.__init__(self)
         except Exception as err:
-            s.close()
             logging.debug("Failed to connect to remote Splunk server (%s:%s). Exception: %s"
                           % (self.host, self.port, err))
             raise err
@@ -127,14 +126,6 @@ class SplunkHecHandler(logging.Handler):
             if record.msg.__class__ == dict:
                 # If record.msg is dict, leverage it as is
                 body.update(record.msg)
-            elif record.msg.count('{}') > 0:
-                # handle log messages with positional arguments
-                for arg in record.args:
-                    record.msg = record.msg.replace('{}', str(arg), 1)
-                body.update({'message': record.msg})
-            elif len(record.args) > 0:
-                # for log messages with string formatting
-                body.update({'message': record.msg % record.args})
             else:
                 # Check to see if msg can be converted to a python object
                 body.update({'message': ast.literal_eval(str(record.msg))})
@@ -169,7 +160,7 @@ class SplunkHecHandler(logging.Handler):
         # http://dev.splunk.com/view/event-collector/SP-CAAAFB6
         if ('fields' in body.keys() and hasattr(body['fields'], 'items')) or ('time' in body.keys()):
             try:
-                for k,v in body['fields'].items():
+                for k, v in body['fields'].items():
                     if k in ['host', 'source', 'sourcetype', 'time', 'index']:
                         event[k] = v
                     else:
@@ -188,13 +179,30 @@ class SplunkHecHandler(logging.Handler):
             else:
                 body.pop('fields')
 
-        data = json.dumps(event, sort_keys=True)
+        try:
+            # 'skipkeys' - If skipkeys is true (default: False), then dict keys that are not of a basic type
+            # (str, int, float, bool, None) will be skipped instead of raising a TypeError.
+            # 'default' - If specified, default should be a function that gets called for objects that can’t otherwise
+            # be serialized. It should return a JSON encodable version of the object or raise a TypeError.
+            data = json.dumps(event, sort_keys=True, skipkeys=True, default=self.serializer)
+        except TypeError:
+            raise
 
         try:
-            req = self.r.post(self.url, data=data, timeout=self.TIMEOUT)
+            req = self.r.post(self.url, data=data, timeout=self.TIMEOUT, headers={'Connection': 'close'})
 
             req.raise_for_status()
         except requests.exceptions.HTTPError as err:
             logging.debug("Failed to emit record to Splunk server (%s:%s).  Exception raised: %s"
                           % (self.host, self.port, err))
             raise err
+
+    @staticmethod
+    def serializer(obj):
+        if type(obj) in [set, frozenset, range]:
+            return list(obj)
+        else:
+            try:
+                return str(obj)
+            except Exception:
+                raise
