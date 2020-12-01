@@ -79,7 +79,7 @@ class SplunkHecHandler(logging.Handler):
             hostname: Specify custom host value.  Defaults to hostname returned by socket.gethostname()
             endpoint: raw | event.  Use 'raw' if field extractions should be skipped.
                 see http://docs.splunk.com/Documentation/Splunk/latest/RESTREF/RESTinput#services.2Fcollector.2Fraw
-
+            empty_body: True|False Initialize with an empty body. Default is False.
         """
         self.host = host
         self.token = token
@@ -93,6 +93,7 @@ class SplunkHecHandler(logging.Handler):
             self.sourcetype = kwargs.get('sourcetype')
             self.hostname = kwargs.get('hostname', socket.gethostname())
             self.endpoint = kwargs.get('endpoint', 'event')
+            self.empty_body = kwargs.get('empty_body', False)
 
         try:
             # Testing connectivity
@@ -121,7 +122,11 @@ class SplunkHecHandler(logging.Handler):
         Dictionary is preserved as JSON object.  log_level is set to requested log level.
         :return: None
         """
-        body = {'log_level': record.levelname}
+        if self.empty_body:
+            body = {}
+        else:
+            body = {'log_level': record.levelname}
+
         try:
             if record.msg.__class__ == dict:
                 # If record.msg is dict, leverage it as is
