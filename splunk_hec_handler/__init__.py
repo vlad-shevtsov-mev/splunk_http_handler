@@ -149,9 +149,9 @@ class SplunkHecHandler(logging.Handler):
         # Note, 'time' in 'fields' will override this
         if 'time' in body.keys():
             event['time'] = body['time']
-        # Resort to current time
+        # Default to log record create time and preserve fractional seconds
         else:
-            event['time'] = int(time.time())
+            event['time'] = record.created
 
         # fields
         # This specifies explicit custom fields that are separate from the main "event" data.
