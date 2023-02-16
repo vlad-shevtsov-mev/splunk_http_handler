@@ -1,6 +1,5 @@
 import json
 import logging
-import time
 import requests
 import ast
 import socket
@@ -12,74 +11,71 @@ class SplunkHecHandler(logging.Handler):
     listener.  Log records can be simple string or dictionary.  In the latter case, if the sourcetype is configured
     to be _json (or variant), JSON format of the log message will be preserved.
 
-    Example:
+    Example
+    -------
+
+    .. code-block:: text
+
         import logging
         from splunk_hec_handler import SplunkHecHandler
         logger = logging.getLogger('SplunkHecHandlerExample')
         logger.setLevel(logging.DEBUG)
-        # If using self-signed certificate, set ssl_verify to False
-        # If using http, set proto to http
+
         splunk_handler = SplunkHecHandler('splunkfw.domain.tld',
                             'EA33046C-6FEC-4DC0-AC66-4326E58B54C3',
                             port=8888, proto='https', ssl_verify=True,
                             source="HEC_example")
         logger.addHandler(splunk_handler)
-        '''
-        Following should result in a Splunk entry with _time set to current timestamp.
-            { log_level: INFO
-              message: Testing Splunk HEC Info message
-            }
-        '''
+
         logger.info("Testing Splunk HEC Info message")
 
-        '''
-        Following should result in a Splunk entry with _time of Monday, August 6, 2018 4:33:43 AM, and contain two
-        custom fields (color, api_endpoint). Custom fields can be seen in verbose mode.
-            { app: my demo
-              error codes: [
-                1
-                23
-                34
-                456
-                ]
-            log_level: ERROR
-            severity: low
-            user: foobar
-            }
-        '''
-        # See http://dev.splunk.com/view/event-collector/SP-CAAAE6P for 'fields'
-        # To use fields, sourcetype must be specified and must allow for indexed field extractions
-        dict_obj = {'time': 1533530023, 'fields': {'color': 'yellow', 'api_endpoint': '/results'},
-                    'user': 'foobar', 'app': 'my demo', 'severity': 'low', 'error codes': [1, 23, 34, 456]}
-        logger.error(dict_obj)
+    Splunk Event Output
+    -------------------
+    Following should result in a Splunk entry with _time set to current timestamp :
 
-    Splunk remote logging configuration
-    http://docs.splunk.com/Documentation/SplunkCloud/latest/Data/UsetheHTTPEventCollector
-    http://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector
+    .. code-block:: text
+
+        {
+            log_level: INFO
+            message: Testing Splunk HEC Info message
+        }
+    References
+    ----------
+    #. See http://dev.splunk.com/view/event-collector/SP-CAAAE6P for 'fields'
+    #. Splunk remote logging configuration
+        * http://docs.splunk.com/Documentation/SplunkCloud/latest/Data/UsetheHTTPEventCollector
+        * http://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector
+    #. To use fields, sourcetype must be specified and must allow for indexed field extractions
+
+        .. code-block:: text
+
+            dict_obj = {'time': 1533530023, 'fields': {'color': 'yellow', 'api_endpoint': '/results'},
+                        'user': 'foobar', 'app': 'my demo', 'severity': 'low', 'error codes': [1, 23, 34, 456]}
+            logger.error(dict_obj)
     """
     URL_PATTERN = "{0}://{1}:{2}/services/collector/{3}"
     TIMEOUT = 30
 
     def __init__(self, host, token, **kwargs):
         """
-        Creates a python logging handler, capable of sending logs to Splunk server
-        :param host: Splunk server hostname or IP
-        :param token: Splunk HEC Token
-        (http://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector#About_Event_Collector_tokens)
-        :param \**kwargs:
-            See below
+        Creates a python logging handler, capable of sending logs to Splunk server.
 
-        :keyword Arguments:
-            port: 0-65535 port number of Splunk HEC listener
-            proto: http | https
-            ssl_verify: True|False|Path to cert.  True by default.
+        :param host: Splunk server hostname or IP.
+        :type host: ``str``
+        :param token: Splunk HEC Token (see http://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector#About_Event_Collector_tokens)
+        :type token: ``str``
+
+        :kwargs Keyword Arguments :
+            * *port* (``int``) -- 0-65535 port number of Splunk HEC listener
+            * *proto* (``str``) -- [http | https]
+            * *ssl_verify* (``bool|str```) -- [True|False|<Path to cert>].  True by default.
                 see https://2.python-requests.org/en/master/user/advanced/#ssl-cert-verification
-            source: Override source value specified in Splunk HEC configuration.  None by default.
-            sourcetype: Override sourcetype value specified in Splunk HEC configuration.  None by default.
-            hostname: Specify custom host value.  Defaults to hostname returned by socket.gethostname()
-            endpoint: raw | event.  Use 'raw' if field extractions should be skipped.
+            * *source* (``str``) -- Override source value specified in Splunk HEC configuration.  None by default.
+            * *sourcetype* (``str``) -- Override sourcetype value specified in Splunk HEC configuration.  None by default.
+            * *hostname* (``str``) -- Specify custom host value.  Defaults to hostname returned by socket.gethostname()
+            * *endpoint* (``str``) -- [raw|event].  Use 'raw' if field extractions should be skipped.
                 see http://docs.splunk.com/Documentation/Splunk/latest/RESTREF/RESTinput#services.2Fcollector.2Fraw
-            empty_body: True|False Initialize with an empty body. Default is False.
+            * *empty_body* (``bool``) -- [True|False] Initialize with an empty body. Eliminate *log_level* in log body.  *Default is False.*
         """
         self.host = host
         self.token = token
@@ -87,7 +83,7 @@ class SplunkHecHandler(logging.Handler):
             self.port = int(kwargs.get('port', 8080))
             self.proto = kwargs.get('proto', 'https')
             self.ssl_verify = False if (kwargs.get('ssl_verify') in ["0", 0, "false", "False", False]) \
-                else kwargs.get('ssl_verify') or kwargs.get('cert') or True
+                else kwargs.get('ssl_verify') or True
             self.source = kwargs.get('source')
             self.index = kwargs.get('index')
             self.sourcetype = kwargs.get('sourcetype')
@@ -156,7 +152,7 @@ class SplunkHecHandler(logging.Handler):
             event['time'] = body['time']
         # Resort to current time
         else:
-            event['time'] = int(time.time())
+            event['time'] = record.created
 
         # fields
         # This specifies explicit custom fields that are separate from the main "event" data.
@@ -188,7 +184,7 @@ class SplunkHecHandler(logging.Handler):
             # 'skipkeys' - If skipkeys is true (default: False), then dict keys that are not of a basic type
             # (str, int, float, bool, None) will be skipped instead of raising a TypeError.
             # 'default' - If specified, default should be a function that gets called for objects that can’t otherwise
-            # be serialized. It should return a JSON encodable version of the object or raise a TypeError.
+            # be serialized. It should return a JSON encode-able version of the object or raise a TypeError.
             data = json.dumps(event, sort_keys=True, skipkeys=True, default=self.serializer)
         except TypeError:
             raise
