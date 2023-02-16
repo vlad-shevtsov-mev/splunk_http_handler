@@ -87,7 +87,7 @@ class SplunkHecHandler(logging.Handler):
             self.port = int(kwargs.get('port', 8080))
             self.proto = kwargs.get('proto', 'https')
             self.ssl_verify = False if (kwargs.get('ssl_verify') in ["0", 0, "false", "False", False]) \
-                else kwargs.get('cert') or True
+                else kwargs.get('ssl_verify') or kwargs.get('cert') or True
             self.source = kwargs.get('source')
             self.index = kwargs.get('index')
             self.sourcetype = kwargs.get('sourcetype')
